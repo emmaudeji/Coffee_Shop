@@ -8,7 +8,7 @@ from flask import Flask, session, redirect
 from .database.models import db_drop_and_create_all, setup_db, Drink
 from .auth.auth import AuthError, requires_auth
 
-AUTH0_DOMAIN = 'dev-zuydypff.us.auth0.com'
+AUTH0_DOMAIN = 'dev-z-5vcck9.us.auth0.com'
 
 app = Flask(__name__)
 setup_db(app)
@@ -18,14 +18,20 @@ cors = CORS(app, resource={r"/*": {"origins": "*"}})
 
 @app.after_request
 def after_request(response):
-    response.headers.add('Access-Control-Allow-Headers', 'Content-Type, Authorization')
-    response.headers.add('Access-Control-Allow-Methods', 'GET,PATCH,POST,PUT,DELETE,OPTIONS')
+    response.headers.add('Access-Control-Allow-Headers',
+                         'Content-Type, Authorization')
+    response.headers.add('Access-Control-Allow-Methods',
+                         'GET,PATCH,POST,PUT,DELETE,OPTIONS')
+    # header('Access-Control-Allow-Origin: *')
     return response
+
 
 '''
 @TODO uncomment the following line to initialize the datbase
+!! NOTE THIS WILL DROP ALL RECORDS AND START YOUR DB FROM SCRATCH
+!! NOTE THIS MUST BE UNCOMMENTED ON FIRST RUN
+!! Running this funciton will add one
 '''
-
 db_drop_and_create_all()
 
 # ROUTES
@@ -37,6 +43,8 @@ db_drop_and_create_all()
     returns status code 200 and json {"success": True, "drinks": drinks} where drinks is the list of drinks
         or appropriate status code indicating reason for failure
 '''
+
+
 @app.route('/drinks', methods=['GET'])
 def get_drinks():
     all_drinks = Drink.query.all()
@@ -60,20 +68,23 @@ def get_drinks():
     returns status code 200 and json {"success": True, "drinks": drinks} where drinks is the list of drinks
         or appropriate status code indicating reason for failure
 '''
+
+
 @app.route('/drinks-detail', methods=['GET'])
 @requires_auth('get:drinks-detail')
-def get_drink_details(payload):
+def get_drink_details(jwt):
     try:
         drinks = Drink.query.all()
         if drinks:
             print(drinks)
-            data = [drink.short() for drink in drinks]
+            data = [drink.long() for drink in drinks]
         else:
             data = []
     except Exception as e:
         print(e)
         abort(500)
     return jsonify({"success": True, "drinks": data})
+
 
 '''
 @TODO implement endpoint
@@ -84,9 +95,11 @@ def get_drink_details(payload):
     returns status code 200 and json {"success": True, "drinks": drink} where drink an array containing only the newly created drink
         or appropriate status code indicating reason for failure
 '''
+
+
 @app.route('/drinks', methods=['POST'])
 @requires_auth('post:drinks')
-def add_drink(payload):
+def add_drink(jwt):
     body = request.get_json()
 
     if body is None:
@@ -109,6 +122,7 @@ def add_drink(payload):
         print(e)
         abort(404)
 
+
 '''
 @TODO implement endpoint
     PATCH /drinks/<id>
@@ -120,9 +134,11 @@ def add_drink(payload):
     returns status code 200 and json {"success": True, "drinks": drink} where drink an array containing only the updated drink
         or appropriate status code indicating reason for failure
 '''
+
+
 @app.route('/drinks/<int:drink_id>', methods=['PATCH'])
 @requires_auth('patch:drinks')
-def update_drink(payload, drink_id):
+def update_drink(jwt, drink_id):
     body = request.get_json()
     selected_drink = Drink.query.get(drink_id)
 
@@ -146,6 +162,20 @@ def update_drink(payload, drink_id):
         print(e)
         abort(404)
 
+
+'''
+# Logout Endpoint
+@app.route('/logout')
+def logout():
+    auth.logout()
+    print("logging out")
+    # Clear session stored data
+    session.clear()
+    # Redirect user to logout endpoint
+    # params = {'returnTo': url_for('home', _external=True), 'client_id': 'YOUR_CLIENT_ID'}
+    return redirect('https://' + AUTH0_DOMAIN + '/v2/logout?')
+'''
+
 '''
 @TODO implement endpoint
     DELETE /drinks/<id>
@@ -156,9 +186,11 @@ def update_drink(payload, drink_id):
     returns status code 200 and json {"success": True, "delete": id} where id is the id of the deleted record
         or appropriate status code indicating reason for failure
 '''
+
+
 @app.route('/drinks/<int:drink_id>', methods=['DELETE'])
 @requires_auth('delete:drinks')
-def delete_drink(payload, drink_id):
+def delete_drink(jwt, drink_id):
     selected_drink = Drink.query.get(drink_id)
 
     if selected_drink is None:
@@ -177,32 +209,19 @@ def delete_drink(payload, drink_id):
         abort(404)
 
 
-'''
-Logout Endpoint
-@app.route('/logout')
-def logout():
-    auth.logout()
-    print("logging out")
-    # Clear session stored data
-    session.clear()
-    # Redirect user to logout endpoint
-    # params = {'returnTo': url_for('home', _external=True), 'client_id': 'YOUR_CLIENT_ID'}
-    return redirect('https://' + AUTH0_DOMAIN + '/v2/logout?')
-'''
-
-
 # Error Handling
 '''
 Example error handling for unprocessable entity
 '''
 
+
 @app.errorhandler(422)
 def unprocessable(error):
     return jsonify({
-                    "success": False,
-                    "error": 422,
-                    "message": "process is unprocessable"
-                    }), 422
+        "success": False,
+        "error": 422,
+        "message": "request is unprocessable"
+    }), 422
 
 
 @app.errorhandler(404)
@@ -210,7 +229,7 @@ def notfound(error):
     return jsonify({
         "success": False,
         "error": 404,
-        "message": "resource was not found"
+        "message": "resource not found. check permissions"
     }), 404
 
 
@@ -219,7 +238,7 @@ def unauthorized(error):
     return jsonify({
         "success": False,
         "error": 401,
-        "message": "its's not authorized"
+        "message": "unauthorized. check the permissions"
     }), 401
 
 
@@ -232,3 +251,23 @@ def unauthorized(error):
                     "message": "resource not found"
                     }), 404
 '''
+
+'''
+@TODO implement error handler for 404
+    error handler should conform to general task above
+'''
+
+
+'''
+@TODO implement error handler for AuthError
+    error handler should conform to general task above
+'''
+
+
+@app.errorhandler(AuthError)
+def unauthorized(error):
+    return jsonify({
+        "success": False,
+        'error': error.status_code,
+        'message': error.error
+    }), error.status_code
